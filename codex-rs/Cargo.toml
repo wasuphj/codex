@@ -37,6 +37,7 @@ members = [
     "cloud-tasks",
     "cloud-tasks-client",
     "cloud-tasks-mock-client",
+    "claude-bridge",
     "cli",
     "collaboration-mode-templates",
     "connectors",
@@ -205,6 +206,7 @@ codex-async-utils = { path = "async-utils" }
 codex-backend-client = { path = "backend-client" }
 codex-build-info = { path = "build-info" }
 codex-chatgpt = { path = "chatgpt" }
+codex-claude-bridge = { path = "claude-bridge" }
 codex-client = { path = "codex-client" }
 codex-collaboration-mode-templates = { path = "collaboration-mode-templates" }
 codex-cloud-config = { path = "cloud-config" }

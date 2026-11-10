@@ -2551,6 +2551,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "codex-claude-bridge"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "codex-utils-cargo-bin",
+ "pretty_assertions",
+ "rmcp",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "codex-cli"
 version = "0.0.0"
 dependencies = [
@@ -2570,6 +2585,7 @@ dependencies = [
  "codex-arg0",
  "codex-build-info",
  "codex-chatgpt",
+ "codex-claude-bridge",
  "codex-cloud-config",
  "codex-cloud-tasks",
  "codex-config",

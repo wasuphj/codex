@@ -15,6 +15,7 @@ use codex_config::ConfigPathContext;
 use codex_config::ConfigRequirements;
 use codex_config::ConfigRequirementsToml;
 use codex_config::ConstrainedWithSource;
+use codex_config::DEFAULT_MCP_SERVER_ENVIRONMENT_ID;
 use codex_config::FeatureRequirementsToml;
 use codex_config::ManagedAuthPolicy;
 use codex_config::McpEnterpriseManagedAuthConfig;
@@ -44,6 +45,8 @@ use codex_config::types::AuthCredentialsStoreMode;
 use codex_config::types::AuthKeyringBackendKind;
 use codex_config::types::History;
 use codex_config::types::McpServerConfig;
+use codex_config::types::McpServerEnvVar;
+use codex_config::types::McpServerTransportConfig;
 use codex_config::types::MemoriesConfig;
 use codex_config::types::ModelAvailabilityNuxConfig;
 use codex_config::types::Notice;
@@ -1976,6 +1979,13 @@ impl Config {
         for registration in additional_plugin_registrations {
             catalog.register(registration);
         }
+        // Registered before user servers so a user-defined `claude` wins.
+        if self.features.enabled(Feature::ClaudeBridge) {
+            catalog.register(McpServerRegistration::from_config(
+                CLAUDE_BRIDGE_MCP_SERVER_NAME.to_string(),
+                claude_bridge_mcp_server_config(),
+            ));
+        }
         for (name, server) in self.mcp_servers.get() {
             catalog.register(McpServerRegistration::from_config(
                 name.clone(),
@@ -2342,6 +2352,48 @@ fn load_model_catalog(
     model_catalog_json
         .map(|path| load_catalog_json(&path))
         .transpose()
+}
+
+const CLAUDE_BRIDGE_MCP_SERVER_NAME: &str = "claude";
+
+/// Stdio MCP server that re-executes this binary as `codex claude-bridge`.
+/// `CODEX_CLAUDE_BRIDGE_*` variables from the parent environment are forwarded.
+fn claude_bridge_mcp_server_config() -> McpServerConfig {
+    let command = std::env::current_exe()
+        .map(|path| path.to_string_lossy().into_owned())
+        .unwrap_or_else(|_| "codex".to_string());
+    let env_vars = std::env::vars_os()
+        .filter_map(|(name, _)| name.into_string().ok())
+        .filter(|name| name.starts_with("CODEX_CLAUDE_BRIDGE_"))
+        .map(McpServerEnvVar::Name)
+        .collect();
+    McpServerConfig {
+        transport: McpServerTransportConfig::Stdio {
+            command,
+            args: vec!["claude-bridge".to_string()],
+            env: None,
+            env_vars,
+            cwd: None,
+        },
+        auth: Default::default(),
+        environment_id: DEFAULT_MCP_SERVER_ENVIRONMENT_ID.to_string(),
+        enabled: true,
+        required: false,
+        startup_readiness: Default::default(),
+        supports_parallel_tool_calls: false,
+        tool_input_schema_max_bytes: None,
+        omit_tools_from: None,
+        disabled_reason: None,
+        startup_timeout_sec: None,
+        tool_timeout_sec: None,
+        default_tools_approval_mode: None,
+        enabled_tools: None,
+        disabled_tools: None,
+        scopes: None,
+        oauth: None,
+        oauth_resource: None,
+        tools: HashMap::new(),
+    }
 }
 
 fn filter_mcp_servers_by_requirements(

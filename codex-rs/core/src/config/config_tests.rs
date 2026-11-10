@@ -6192,6 +6192,59 @@ enabled = true
     Ok(())
 }
 
+async fn claude_bridge_servers(
+    config_toml: &str,
+) -> anyhow::Result<HashMap<String, McpServerConfig>> {
+    let codex_home = TempDir::new()?;
+    std::fs::write(codex_home.path().join(CONFIG_TOML_FILE), config_toml)?;
+    let config = ConfigBuilder::default()
+        .codex_home(codex_home.path().to_path_buf())
+        .build()
+        .await?;
+    let plugins_manager =
+        plugins_manager_for_config(&config, auth_manager_from_optional_auth(/*auth*/ None));
+    let mcp_config = config.to_mcp_config(&plugins_manager).await;
+    Ok(mcp_config.mcp_server_catalog.configured_servers())
+}
+
+#[tokio::test]
+async fn claude_bridge_feature_registers_claude_mcp_server() -> anyhow::Result<()> {
+    let servers = claude_bridge_servers("[features]\nclaude_bridge = true\n").await?;
+
+    let server = servers.get("claude").expect("claude server registered");
+    let McpServerTransportConfig::Stdio { command, args, .. } = &server.transport else {
+        panic!("expected stdio transport");
+    };
+    assert_eq!(
+        command,
+        &std::env::current_exe()?.to_string_lossy().into_owned()
+    );
+    assert_eq!(args, &vec!["claude-bridge".to_string()]);
+    Ok(())
+}
+
+#[tokio::test]
+async fn claude_bridge_feature_keeps_user_defined_claude_server() -> anyhow::Result<()> {
+    let servers = claude_bridge_servers(
+        "[features]\nclaude_bridge = true\n\n[mcp_servers.claude]\nurl = \"https://user.example/mcp\"\n",
+    )
+    .await?;
+
+    assert_eq!(
+        servers.get("claude"),
+        Some(&http_mcp("https://user.example/mcp"))
+    );
+    Ok(())
+}
+
+#[tokio::test]
+async fn claude_bridge_server_absent_when_feature_disabled() -> anyhow::Result<()> {
+    let servers = claude_bridge_servers("").await?;
+
+    assert!(!servers.contains_key("claude"));
+    Ok(())
+}
+
 #[tokio::test]
 async fn selected_plugin_wins_after_discovered_plugin_requirements() -> anyhow::Result<()> {
     let codex_home = TempDir::new()?;

@@ -58,6 +58,7 @@ codex-features = { workspace = true }
 codex-multi-env-copy-file = { workspace = true }
 codex-git-attribution = { workspace = true }
 codex-git-utils = { workspace = true }
+codex-claude-bridge = { workspace = true }
 codex-install-context = { workspace = true }
 codex-login = { workspace = true }
 codex-memories-write = { workspace = true }

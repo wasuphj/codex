@@ -237,6 +237,10 @@ enum Subcommand {
     #[clap(hide = true, name = "stdio-to-uds")]
     StdioToUds(StdioToUdsCommand),
 
+    /// Internal: stdio MCP server bridging to headless Claude Code sessions.
+    #[clap(hide = true)]
+    ClaudeBridge(ClaudeBridgeCommand),
+
     /// [EXPERIMENTAL] Run the standalone exec-server service.
     ExecServer(ExecServerCommand),
 
@@ -758,6 +762,25 @@ struct StdioToUdsCommand {
     /// Path to the Unix domain socket to connect to.
     #[arg(value_name = "SOCKET_PATH", value_parser = parse_socket_path)]
     socket_path: AbsolutePathBuf,
+}
+
+#[derive(Debug, Parser)]
+struct ClaudeBridgeCommand {
+    /// Claude Code executable (default: `CODEX_CLAUDE_BRIDGE_*` environment or `claude`).
+    #[arg(long = "claude-bin")]
+    claude_bin: Option<String>,
+
+    /// Model for the headless Claude session.
+    #[arg(long)]
+    model: Option<String>,
+
+    /// Permission mode for the headless Claude session.
+    #[arg(long = "permission-mode")]
+    permission_mode: Option<String>,
+
+    /// Agent name shown to peers.
+    #[arg(long)]
+    name: Option<String>,
 }
 
 fn parse_socket_path(raw: &str) -> Result<AbsolutePathBuf, String> {
@@ -1896,6 +1919,27 @@ async fn dispatch_cli(
             let socket_path = cmd.socket_path;
             codex_stdio_to_uds::run(socket_path.as_path()).await?;
         }
+        Some(Subcommand::ClaudeBridge(cmd)) => {
+            reject_remote_mode_for_subcommand(
+                root_remote.as_deref(),
+                root_remote_auth_token_env.as_deref(),
+                "claude-bridge",
+            )?;
+            let mut options = codex_claude_bridge::BridgeOptions::from_env();
+            if let Some(claude_bin) = cmd.claude_bin {
+                options.claude_bin = claude_bin;
+            }
+            if let Some(model) = cmd.model {
+                options.model = model;
+            }
+            if cmd.permission_mode.is_some() {
+                options.permission_mode = cmd.permission_mode;
+            }
+            if cmd.name.is_some() {
+                options.name = cmd.name;
+            }
+            codex_claude_bridge::run_mcp_stdio(options).await?;
+        }
         Some(Subcommand::ExecServer(mut cmd)) => {
             reject_remote_mode_for_subcommand(
                 root_remote.as_deref(),
@@ -2393,6 +2437,7 @@ fn unsupported_subcommand_name_for_strict_config(
         Some(Subcommand::Apply(_)) => Some("apply"),
         Some(Subcommand::ResponsesApiProxy(_)) => Some("responses-api-proxy"),
         Some(Subcommand::StdioToUds(_)) => Some("stdio-to-uds"),
+        Some(Subcommand::ClaudeBridge(_)) => Some("claude-bridge"),
         Some(Subcommand::Features(_)) => Some("features"),
         Some(Subcommand::TcpTunnel(_)) => Some("tcp-tunnel"),
     }
